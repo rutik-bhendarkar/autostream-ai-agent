@@ -1,4 +1,15 @@
 import json
+import os
+from dotenv import load_dotenv
+
+# ✅ Correct import for new Gemini SDK
+import google.genai as genai
+
+# ---------------- LOAD ENV ----------------
+load_dotenv()
+
+# ✅ Secure API key usage
+client = genai.Client(api_key=os.getenv("AIzaSyB2yVy8rdxtXbc3oe8nGwIFbzZlIkrMSHE"))
 
 # ---------------- LOAD KNOWLEDGE BASE ----------------
 def load_data():
@@ -7,39 +18,45 @@ def load_data():
 
 data = load_data()
 
-# ---------------- INTENT DETECTION ----------------
+# ---------------- AI INTENT DETECTION ----------------
 def detect_intent(user_input):
-    text = user_input.lower()
+    prompt = f"""
+    Classify the user intent into one of these:
+    greeting, inquiry, high_intent
 
-    if "buy" in text or "subscribe" in text or "want" in text:
-        return "high_intent"
-    elif "price" in text or "plan" in text:
-        return "inquiry"
-    elif "hi" in text or "hello" in text:
-        return "greeting"
-    else:
-        return "unknown"
+    Input: {user_input}
+    Answer ONLY one word.
+    """
 
-# ---------------- RAG RESPONSE ----------------
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
+
+    # ✅ Clean output
+    return response.text.strip().lower().split()[0]
+
+# ---------------- AI RESPONSE (RAG STYLE) ----------------
 def answer_query(query):
-    query = query.lower()
+    context = json.dumps(data)
 
-    if "pro" in query:
-        plan = data["plans"]["pro"]
-        return f"Pro Plan costs {plan['price']}, offers {plan['videos']}, {plan['resolution']} and {plan.get('features', '')}."
+    prompt = f"""
+    You are AutoStream AI assistant.
 
-    elif "basic" in query:
-        plan = data["plans"]["basic"]
-        return f"Basic Plan costs {plan['price']}, offers {plan['videos']} and {plan['resolution']}."
+    Use ONLY this data:
+    {context}
 
-    elif "refund" in query:
-        return data["policies"]["refund"]
+    Answer clearly and professionally.
 
-    elif "support" in query:
-        return data["policies"]["support"]
+    User: {query}
+    """
 
-    else:
-        return "We offer Basic and Pro plans. Ask me about pricing or features."
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=prompt
+    )
+
+    return response.text.strip()
 
 # ---------------- MOCK TOOL ----------------
 def mock_lead_capture(name, email, platform):
@@ -56,7 +73,7 @@ state = {
 
 # ---------------- MAIN LOOP ----------------
 def run_agent():
-    print("🤖 AutoStream AI Agent Started (type 'exit' to stop)\n")
+    print("🤖 AutoStream AI Agent (Gemini Final Version) Started (type 'exit' to stop)\n")
 
     while True:
         user_input = input("User: ")
@@ -94,7 +111,7 @@ def run_agent():
                 state["platform"] = input("Agent: Which platform do you create on? (YouTube/Instagram): ")
                 continue
 
-            # ✅ All details collected → call tool
+            # ✅ Call tool only after collecting all data
             mock_lead_capture(
                 state["name"],
                 state["email"],
@@ -103,7 +120,7 @@ def run_agent():
 
             print("Agent: 🎉 You're all set! Our team will contact you soon.")
 
-            # Reset for next user
+            # Reset state
             state["name"] = None
             state["email"] = None
             state["platform"] = None
